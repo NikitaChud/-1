@@ -1,0 +1,58 @@
+#Чудинов Никита Викторович — для региона 82 рассчитайте урожайность пшеницы в период с 2009 по 2016 год взяв для рассчета средние суммы активных температур за эти годы, с 18 ближайших метеостанций
+#Подключим нужные библиотеки
+library(lubridate)
+library(stringr)
+library(ggplot2)
+library(tidyverse)
+library(rnoaa)
+#station_data = ghcnd_stations()
+setwd("~/Desktop")
+station_data = read.csv("station_data.csv")
+#После получения всписка всех станций, получите список станций ближайших к столице вашего региона,создав таблицу с именем региона и координатами его столицы
+crimea = data.frame(id = "CRIMEA", latitude = 44.948237, longitude = 34.100318)
+crimea_around = meteo_nearby_stations(lat_lon_df = crimea, station_data = station_data,
+limit = 18, var = c("PRCP", "TAVG"),
+year_min = 2009, year_max = 2016)
+#crimea_around это список единственным элементом которого является таблица, содержащая идентификаторы метеостанций отсортированных по их
+# удалленности от Крыма, очевидно что первым элементом таблицы будет идентификатор метеостанции Крыма, его то мы и попытаемся получить
+crimea_id = crimea_around[["CRIMEA"]][["id"]][1]
+str(crimea_around)
+#Для получения всех данных с метеостанции, зная ее идентификатор, используйте след. команду
+all_crimea_data = meteo_tidy_ghcnd(stationid = crimea_id)
+crimea_table=crimea_around[[1]]
+summary(crimea_table)
+all_i=data.frame()
+all_crimea=data.frame()
+for(i in 1:18)
+{all_i = meteo_tidy_ghcnd(stationid=crimea_around[["CRIMEA"]][["id"]][i])
+all_i=all_i[ ,c("id","date", "tavg")]
+print(all_i)
+all_crimea=rbind(all_crimea, all_i)}
+#Средняя сумма активных температур
+data_crimea=all_crimea %>%
+mutate(date=ymd(date),
+year=year(date),
+month=month(date)) %>%
+mutate(tavg=case_when(tavg<50 ~ 0, TRUE ~ tavg)/10) %>%
+filter (year>2009 & year<2016) %>%
+group_by(id,year,month) %>%
+summarize(tsum=sum(tavg, na.rm=T)) %>%
+group_by(month) %>% summarize(St = mean(tsum, na.rm=T))
+afi=c(0.00,0.00,0.00,32.11,26.31,25.64,32.20,18.73,
+16.30,13.83,0.00,0.00)
+bfi=c(0.00,0.00,0.00,11.30,9.26,9.03,8.16,6.59,5.73,
+4.87,0.00,0.00)
+di=c(0.00,0.00,0.00,0.33,1.00,1.00,1.00,0.32,0.00,
+0.00,0.00,0.00)
+y=1.0
+Kf=300
+Qj=1600
+Lj=2.2
+Ej=25
+#Рассчитаем урожайность по месяцам
+data_crimea= data_crimea %>%
+mutate(Fi=(afi)+(bfi)*y*(data_crimea$St))
+data_crimea= data_crimea %>% mutate(Yj=(((data_crimea$Fi)*(di)*Kf)/(Qj*Lj*(100-Ej))))
+#Расчитываем суммарную урожайность как сумму по месяцам
+YIELD=sum(data_crimea$Yj);YIELD
+# Ответ: 14,1 ц/га
